@@ -25,14 +25,14 @@ use tracing::{debug, error, info, warn};
 type HmacSha256 = Hmac<Sha256>;
 
 /// Generate HMAC-SHA256 signature for message authentication.
-fn hmac_sign(secret: &str, data: &[u8]) -> String {
+pub fn hmac_sign(secret: &str, data: &[u8]) -> String {
     let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC accepts any key size");
     mac.update(data);
     hex::encode(mac.finalize().into_bytes())
 }
 
 /// Verify HMAC-SHA256 signature using constant-time comparison.
-fn hmac_verify(secret: &str, data: &[u8], signature: &str) -> bool {
+pub fn hmac_verify(secret: &str, data: &[u8], signature: &str) -> bool {
     let expected = hmac_sign(secret, data);
     subtle::ConstantTimeEq::ct_eq(expected.as_bytes(), signature.as_bytes()).into()
 }
@@ -687,9 +687,9 @@ fn handle_notification(peer_node_id: &str, notif: &WireNotification, registry: &
     }
 }
 
-/// Write a framed message (4-byte length + JSON) to a TCP stream.
-pub async fn write_message(
-    writer: &mut tokio::net::tcp::OwnedWriteHalf,
+/// Write a framed message (4-byte length + JSON) to any async writer.
+pub async fn write_message<W: tokio::io::AsyncWrite + Unpin>(
+    writer: &mut W,
     msg: &WireMessage,
 ) -> Result<(), WireError> {
     let bytes = encode_message(msg)?;
@@ -698,9 +698,9 @@ pub async fn write_message(
     Ok(())
 }
 
-/// Read a framed message (4-byte length + JSON) from a TCP stream.
-pub async fn read_message(
-    reader: &mut tokio::net::tcp::OwnedReadHalf,
+/// Read a framed message (4-byte length + JSON) from any async reader.
+pub async fn read_message<R: tokio::io::AsyncRead + Unpin>(
+    reader: &mut R,
 ) -> Result<WireMessage, WireError> {
     let mut header = [0u8; 4];
     match reader.read_exact(&mut header).await {
